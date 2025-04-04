@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -24,10 +26,18 @@ var tlsUrl string = getEnvOrFail("TLS_URL")
 var botToken string = getEnvOrFail("BOT_TOKEN")
 var chatID string = getEnvOrFail("CHAT_ID")
 
-func main() {
+var storageFile string = "data/titles.txt"
 
+func main() {
+	for {
+		checkForUpdates()
+		time.Sleep(30 * time.Minute)
+	}
+}
+
+func checkForUpdates() {
 	// Загружаем уже сохранённые заголовки
-	existing, err := loadTitlesSet("titles.txt")
+	existing, err := loadTitlesSet(storageFile)
 	if err != nil {
 		log.Fatal("Ошибка загрузки сохранённых заголовков:", err)
 	}
@@ -65,7 +75,7 @@ func main() {
 			fmt.Println("→", t)
 		}
 		sendNewsToTelegram(newTitles)
-		if err := appendTitlesToFile("titles.txt", newTitles); err != nil {
+		if err := appendTitlesToFile(storageFile, newTitles); err != nil {
 			log.Fatal("Ошибка сохранения заголовков:", err)
 		}
 	} else {
@@ -98,6 +108,15 @@ func loadTitlesSet(filename string) (map[string]struct{}, error) {
 
 // Добавление новых заголовков в файл
 func appendTitlesToFile(filename string, titles []string) error {
+	// Извлекаем директорию из пути к файлу
+	dir := filepath.Dir(filename)
+
+	// Создаём директорию, если она не существует
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return fmt.Errorf("не удалось создать директорию %s: %w", dir, err)
+	}
+
+	// Открываем файл на дозапись
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
